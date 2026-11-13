@@ -9,10 +9,18 @@ with sync_playwright() as p:
     page = browser.new_page()
     try:
         page.goto(START, wait_until="networkidle")
+        text = page.inner_text("body")
+
+        # stop immediately if the site is throttling us
+        if "Zu viele Anfragen" in text or "Too many requests" in text:
+            print("blocked by site, no alert")
+            raise SystemExit(0)
 
         # location checkbox is normally ticked already; try, but don't fail
         try:
-            page.get_by_role("checkbox", name=re.compile("Abholung fertiger Dokumente")).check(timeout=5000)
+            page.get_by_role(
+                "checkbox", name=re.compile("Abholung fertiger Dokumente")
+            ).check(timeout=5000)
         except Exception:
             print("checkbox step skipped")
 
@@ -23,6 +31,8 @@ with sync_playwright() as p:
         page.wait_for_load_state("networkidle")
 
         text = page.inner_text("body")
+    except SystemExit:
+        raise
     except Exception as e:
         print("STEP FAILED:", e)
         print("PAGE TEXT AT FAILURE:")
@@ -31,8 +41,10 @@ with sync_playwright() as p:
     finally:
         browser.close()
 
-if "Wunschtage" in text:
-    print("Click did not go through, check selector")
+if "Zu viele Anfragen" in text or "Too many requests" in text:
+    print("blocked by site, no alert")
+elif "Wunschtage" in text:
+    print("Click did not go through")
 elif "keine Termine" in text or "erneut ausführbar" in text:
     print("none")
 else:
